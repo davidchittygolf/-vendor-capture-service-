@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vendor Capture & Trustpair Verification Service</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel compiler for inline JSX execution -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-indigo-500 selection:text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const INITIAL_FORM_STATE = {
+      legalName: '',
+      tradingName: '',
+      taxId: '',
+      regNumber: '',
+      country: 'United States',
+      address1: '',
+      city: '',
+      postalCode: '',
+      contactName: '',
+      contactTitle: '',
+      contactEmail: '',
+      contactPhone: '',
+      bankName: '',
+      bankCountry: 'United States',
+      accountNumber: '',
+      swift: '',
+      accountHolder: '',
+      currency: 'USD'
+    };
+
+    const SAMPLE_FORM_DATA = {
+      legalName: 'Vanguard Global Logistics LLC',
+      tradingName: 'Vanguard Express',
+      taxId: 'US88-2940192',
+      regNumber: 'LLC-2024-998',
+      country: 'United States',
+      address1: '750 Logistics Parkway',
+      city: 'Atlanta',
+      postalCode: '30301',
+      contactName: 'Amanda Hayes',
+      contactTitle: 'Head of Treasury',
+      contactEmail: 'a.hayes@vanguard-logistics.com',
+      contactPhone: '+1 404 555 0188',
+      bankName: 'JPMorgan Chase Bank, N.A.',
+      bankCountry: 'United States',
+      accountNumber: 'US44JPMC12345678901234',
+      swift: 'CHASUS33',
+      accountHolder: 'Vanguard Global Logistics LLC',
+      currency: 'USD'
+    };
+
+    const INITIAL_VENDORS = [
+      {
+        id: 'VND-2026-001',
+        legalName: 'Apex Engineering Solutions Ltd',
+        tradingName: 'Apex Engineering',
+        taxId: 'GB987654321',
+        regNumber: '12345678',
+        country: 'United Kingdom',
+        address1: '100 Innovation Way',
+        city: 'London',
+        postalCode: 'EC2A 1NT',
+        contactName: 'Sarah Jenkins',
+        contactTitle: 'Finance Director',
+        contactEmail: 's.jenkins@apexengineering.co.uk',
+        contactPhone: '+44 20 7946 0912',
+        bankName: 'Barclays Bank PLC',
+        bankCountry: 'United Kingdom',
+        accountNumber: 'GB82BARC20201530998765',
+        swift: 'BARCGB22',
+        accountHolder: 'Apex Engineering Solutions Ltd',
+        currency: 'GBP',
+        status: 'Ready for Review',
+        submittedAt: '2026-09-28 10:15',
+        trustpair: {
+          riskLevel: 'LOW',
+          bankMatch: true,
+          bankMatchScore: 99,
+          bankMatchDetails: 'Exact ownership match against Barclays corporate banking registry.',
+          taxMatch: true,
+          taxMatchScore: 100,
+          taxMatchDetails: 'Active VAT identification number registered to legal entity.',
+          score: 98,
+          verifiedAt: '2026-09-28 10:17'
+        },
+        auditTrail: [
+          { timestamp: '2026-09-28 10:15', action: 'Supplier Self-Service Onboarding Submitted', actor: 'Sarah Jenkins (Supplier)' },
+          { timestamp: '2026-09-28 10:17', action: 'Trustpair Automated Scan Completed (Low Risk)', actor: 'Trustpair AI Engine' }
+        ]
+      },
+      {
+        id: 'VND-2026-002',
+        legalName: 'Global Cloud Systems GmbH',
+        tradingName: 'Global Cloud',
+        taxId: 'DE811223344',
+        regNumber: 'HRB 90123',
+        country: 'Germany',
+        address1: 'Friedrichstraße 42',
+        city: 'Berlin',
+        postalCode: '10117',
+        contactName: 'Markus Weber',
+        contactTitle: 'AR Manager',
+        contactEmail: 'm.weber@globalcloud.de',
+        contactPhone: '+49 30 1234567',
+        bankName: 'Deutsche Bank AG',
+        bankCountry: 'Germany',
+        accountNumber: 'DE89100100101234567890',
+        swift: 'DEUTDEDB101',
+        accountHolder: 'Global Cloud Systems Inc', // Intentional variation
+        currency: 'EUR',
+        status: 'Ready for Review',
+        submittedAt: '2026-09-28 11:30',
+        trustpair: {
+          riskLevel: 'MEDIUM',
+          bankMatch: false,
+          bankMatchScore: 74,
+          bankMatchDetails: 'Account Holder variation: "Inc" submitted vs "GmbH" registered in banking system.',
+          taxMatch: true,
+          taxMatchScore: 98,
+          taxMatchDetails: 'Valid German VAT identification.',
+          score: 72,
+          verifiedAt: '2026-09-28 11:32'
+        },
+        auditTrail: [
+          { timestamp: '2026-09-28 11:30', action: 'Supplier Self-Service Onboarding Submitted', actor: 'Markus Weber (Supplier)' },
+          { timestamp: '2026-09-28 11:32', action: 'Trustpair Flagged Account Name Discrepancy', actor: 'Trustpair AI Engine' }
+        ]
+      },
+      {
+        id: 'VND-2026-003',
+        legalName: 'Nexus Logistics Corp',
+        tradingName: 'Nexus Express',
+        taxId: 'US99-8877665',
+        regNumber: 'DEL-99812',
+        country: 'United States',
+        address1: '500 Logistics Blvd',
+        city: 'Chicago',
+        postalCode: '60601',
+        contactName: 'Robert Vance',
+        contactTitle: 'Treasury Analyst',
+        contactEmail: 'r.vance@nexuslogistics-corp.com',
+        contactPhone: '+1 312 555 0199',
+        bankName: 'Offshore Commercial Bank',
+        bankCountry: 'Panama',
+        accountNumber: 'US12CHAS33445566778899',
+        swift: 'OFFSUS33',
+        accountHolder: 'Private Holdings Ltd', // High Fraud Risk Mismatch
+        currency: 'USD',
+        status: 'Ready for Review',
+        submittedAt: '2026-09-28 13:05',
+        trustpair: {
+          riskLevel: 'HIGH',
+          bankMatch: false,
+          bankMatchScore: 18,
+          bankMatchDetails: 'CRITICAL WARNING: Bank account belongs to an unrelated third party.',
+          taxMatch: false,
+          taxMatchScore: 35,
+          taxMatchDetails: 'Tax ID mismatch with federal registration index.',
+          score: 22,
+          verifiedAt: '2026-09-28 13:07'
+        },
+        auditTrail: [
+          { timestamp: '2026-09-28 13:05', action: 'Supplier Self-Service Onboarding Submitted', actor: 'Robert Vance (Supplier)' },
+          { timestamp: '2026-09-28 13:07', action: 'Trustpair Issued High Risk Fraud Warning', actor: 'Trustpair AI Engine' }
+        ]
+      }
+    ];
+
+    function App() {
+      const [vendors, setVendors] = useState(() => {
+        const saved = localStorage.getItem('vendor_capture_vendors');
+        return saved ? JSON.parse(saved) : INITIAL_VENDORS;
+      });
+
+      const [activeTab, setActiveTab] = useState('supplier'); // 'supplier' | 'trustpair' | 'clerk'
+      const [formData, setFormData] = useState(INITIAL_FORM_STATE);
+      const [selectedVendorId, setSelectedVendorId] = useState(INITIAL_VENDORS[0].id);
+      const [submittedBanner, setSubmittedBanner] = useState(null);
+
+      // Filtering state for AP Clerk
+      const [searchQuery, setSearchQuery] = useState('');
+      const [statusFilter, setStatusFilter] = useState('ALL');
+      const [riskFilter, setRiskFilter] = useState('ALL');
+
+      // Modals
+      const [modalState, setModalState] = useState({
+        type: null, // 'reject' | 'revision' | 'erp'
+        vendor: null,
+        reason: 'Name Mismatch / High Risk',
+        notes: ''
+      });
+
+      // Save vendors to LocalStorage on change
+      useEffect(() => {
+        localStorage.setItem('vendor_capture_vendors', JSON.stringify(vendors));
+      }, [vendors]);
+
+      // Re-initialize Lucide Icons after DOM updates
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      });
+
+      const handleResetDemo = () => {
+        setFormData(INITIAL_FORM_STATE);
+        setVendors(INITIAL_VENDORS);
+        setSelectedVendorId(INITIAL_VENDORS[0].id);
+        setActiveTab('supplier');
+        setSubmittedBanner(null);
+        setSearchQuery('');
+        setStatusFilter('ALL');
+        setRiskFilter('ALL');
+        setModalState({ type: null, vendor: null, reason: 'Name Mismatch / High Risk', notes: '' });
+        localStorage.removeItem('vendor_capture_vendors');
+      };
+
+      const handleFormSubmit = (e) => {
+        e.preventDefault();
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+        const newId = `VND-2026-${String(vendors.length + 1).padStart(3, '0')}`;
+
+        const isExactMatch = formData.accountHolder.trim().toLowerCase() === formData.legalName.trim().toLowerCase();
+
+        const newVendor = {
+          ...formData,
+          id: newId,
+          status: 'Ready for Review',
+          submittedAt: timestamp,
+          trustpair: {
+            riskLevel: isExactMatch ? 'LOW' : 'MEDIUM',
+            bankMatch: isExactMatch,
+            bankMatchScore: isExactMatch ? 98 : 72,
+            bankMatchDetails: isExactMatch 
+              ? 'Exact ownership match confirmed against tier-1 banking registry.' 
+              : 'Name variation detected between bank account holder and registered legal name.',
+            taxMatch: true,
+            taxMatchScore: 96,
+            taxMatchDetails: 'Tax identification verified active.',
+            score: isExactMatch ? 97 : 74,
+            verifiedAt: timestamp
+          },
+          auditTrail: [
+            { timestamp, action: 'Supplier Self-Service Form Submitted', actor: `${formData.contactName || 'Supplier'}` },
+            { timestamp, action: 'Trustpair Verification Scan Executed', actor: 'Trustpair AI Engine' }
+          ]
+        };
+
+        setVendors([newVendor, ...vendors]);
+        setSelectedVendorId(newId);
+        setSubmittedBanner({ id: newId, name: formData.legalName });
+        setFormData(INITIAL_FORM_STATE);
+      };
+
+      const handleSimulateTrustpairOutcome = (vendorId, outcome) => {
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+        setVendors(prev => prev.map(v => {
+          if (v.id !== vendorId) return v;
+
+          let updatedTrustpair = {};
+          if (outcome === 'VERIFIED') {
+            updatedTrustpair = {
+              riskLevel: 'LOW',
+              bankMatch: true,
+              bankMatchScore: 99,
+              bankMatchDetails: 'Verified account holder matches corporate registry.',
+              taxMatch: true,
+              taxMatchScore: 100,
+              taxMatchDetails: 'Valid corporate registration and tax ID.',
+              score: 99,
+              verifiedAt: timestamp
+            };
+          } else if (outcome === 'MISMATCH') {
+            updatedTrustpair = {
+              riskLevel: 'MEDIUM',
+              bankMatch: false,
+              bankMatchScore: 68,
+              bankMatchDetails: 'Trading name used instead of legal entity name on bank account.',
+              taxMatch: true,
+              taxMatchScore: 92,
+              taxMatchDetails: 'Tax record active.',
+              score: 68,
+              verifiedAt: timestamp
+            };
+          } else if (outcome === 'HIGH_RISK') {
+            updatedTrustpair = {
+              riskLevel: 'HIGH',
+              bankMatch: false,
+              bankMatchScore: 12,
+              bankMatchDetails: 'CRITICAL ALERT: Bank account associated with flagged offshore entity.',
+              taxMatch: false,
+              taxMatchScore: 30,
+              taxMatchDetails: 'Invalid or suspended tax registration number.',
+              score: 15,
+              verifiedAt: timestamp
+            };
+          }
+
+          return {
+            ...v,
+            status: 'Ready for Review',
+            trustpair: updatedTrustpair,
+            auditTrail: [
+              ...v.auditTrail,
+              { timestamp, action: `Trustpair Outcome Updated: ${outcome}`, actor: 'Trustpair AI Engine' }
+            ]
+          };
+        }));
+      };
+
+      const handleApproveVendor = (vendorId) => {
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+        setVendors(prev => prev.map(v => {
+          if (v.id !== vendorId) return v;
+          return {
+            ...v,
+            status: 'Approved',
+            auditTrail: [
+              ...v.auditTrail,
+              { timestamp, action: 'AP Clerk Approved Supplier - Dispatched to ERP (SAP/Oracle)', actor: 'AP Clerk (John Doe)' }
+            ]
+          };
+        }));
+      };
+
+      const handleConfirmReject = () => {
+        if (!modalState.vendor) return;
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+        const fullReason = modalState.notes ? `${modalState.reason}: ${modalState.notes}` : modalState.reason;
+
+        setVendors(prev => prev.map(v => {
+          if (v.id !== modalState.vendor.id) return v;
+          return {
+            ...v,
+            status: 'Rejected',
+            rejectionReason: fullReason,
+            auditTrail: [
+              ...v.auditTrail,
+              { timestamp, action: `AP Clerk Rejected Vendor: "${fullReason}"`, actor: 'AP Clerk (John Doe)' }
+            ]
+          };
+        }));
+
+        setModalState({ type: null, vendor: null, reason: 'Name Mismatch / High Risk', notes: '' });
+      };
+
+      const handleConfirmRevision = () => {
+        if (!modalState.vendor || !modalState.notes.trim()) return;
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+        setVendors(prev => prev.map(v => {
+          if (v.id !== modalState.vendor.id) return v;
+          return {
+            ...v,
+            status: 'Revision Requested',
+            revisionNotes: modalState.notes,
+            auditTrail: [
+              ...v.auditTrail,
+              { timestamp, action: `Returned to Vendor for Revision: "${modalState.notes}"`, actor: 'AP Clerk (John Doe)' }
+            ]
+          };
+        }));
+
+        setModalState({ type: null, vendor: null, reason: '', notes: '' });
+      };
+
+      // Metrics calculation
+      const metrics = useMemo(() => {
+        return {
+          total: vendors.length,
+          pending: vendors.filter(v => v.status === 'Ready for Review').length,
+          highRisk: vendors.filter(v => v.trustpair?.riskLevel === 'HIGH').length,
+          approved: vendors.filter(v => v.status === 'Approved').length,
+        };
+      }, [vendors]);
+
+      const selectedVendor = vendors.find(v => v.id === selectedVendorId) || vendors[0];
+
+      const filteredVendors = useMemo(() => {
+        return vendors.filter(v => {
+          const matchesSearch = 
+            v.legalName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            v.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            v.taxId.toLowerCase().includes(searchQuery.toLowerCase());
+          
+          const matchesStatus = statusFilter === 'ALL' || v.status === statusFilter;
+          const matchesRisk = riskFilter === 'ALL' || v.trustpair?.riskLevel === riskFilter;
+
+          return matchesSearch && matchesStatus && matchesRisk;
+        });
+      }, [vendors, searchQuery, statusFilter, riskFilter]);
+
+      return (
+        <div className="flex flex-col min-h-screen">
+          {/* Header */}
+          <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 px-4 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center space-x-3">
+              <div className="bg-gradient-to-tr from-indigo-600 to-blue-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20">
+                <i data-lucide="shield-check" className="w-6 h-6 text-white"></i>
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h1 className="text-lg font-bold tracking-tight text-white">Vendor Capture Service</h1>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold">
+                    Trustpair Fraud Shield
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">Supplier Onboarding & Payment Fraud Prevention Engine</p>
+              </div>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div className="flex items-center bg-slate-950 border border-slate-800 p-1 rounded-xl shadow-inner">
+              <button
+                onClick={() => setActiveTab('supplier')}
+                className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'supplier'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <i data-lucide="user" className="w-3.5 h-3.5"></i>
+                <span>1. Supplier Portal</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('trustpair')}
+                className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'trustpair'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <i data-lucide="sparkles" className="w-3.5 h-3.5 text-amber-400"></i>
+                <span>2. Trustpair Engine</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('clerk')}
+                className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  activeTab === 'clerk'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <i data-lucide="building-2" className="w-3.5 h-3.5"></i>
+                <span>3. AP Review Console</span>
+                {metrics.pending > 0 && (
+                  <span className="ml-1 bg-amber-500 text-slate-950 font-bold text-[10px] px-1.5 py-0.2 rounded-full">
+                    {metrics.pending}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Reset Demo Data Action */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleResetDemo}
+                title="Clears form inputs, restores sample vendors, and resets app state"
+                className="flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-600/30 border border-rose-500/30 rounded-xl transition shadow-sm cursor-pointer"
+              >
+                <i data-lucide="rotate-ccw" className="w-3.5 h-3.5"></i>
+                <span>Reset Demo</span>
+              </button>
+            </div>
+          </header>
+
+          {/* Main Body */}
+          <main className="flex-1 p-4 lg:p-8 max-w-7xl w-full mx-auto">
+            {activeTab === 'supplier' && (
+              <SupplierPortalView 
+                formData={formData}
+                setFormData={setFormData}
+                onSubmit={handleFormSubmit}
+                submittedBanner={submittedBanner}
+                onGoToTrustpair={() => setActiveTab('trustpair')}
+                onLoadSample={() => setFormData(SAMPLE_FORM_DATA)}
+                onClearForm={() => setFormData(INITIAL_FORM_STATE)}
+              />
+            )}
+
+            {activeTab === 'trustpair' && (
+              <TrustpairEngineView 
+                vendors={vendors}
+                selectedVendorId={selectedVendorId}
+                setSelectedVendorId={setSelectedVendorId}
+                onSimulate={handleSimulateTrustpairOutcome}
+                onGoToClerk={() => setActiveTab('clerk')}
+              />
+            )}
+
+            {activeTab === 'clerk' && (
+              <APClerkConsoleView 
+                vendors={filteredVendors}
+                allVendorsCount={vendors.length}
+                metrics={metrics}
+                selectedVendor={selectedVendor}
+                setSelectedVendorId={setSelectedVendorId}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+                riskFilter={riskFilter}
+                setRiskFilter={setRiskFilter}
+                onApprove={handleApproveVendor}
+                onOpenRejectModal={(v) => setModalState({ type: 'reject', vendor: v, reason: 'Name Mismatch / High Risk', notes: '' })}
+                onOpenRevisionModal={(v) => setModalState({ type: 'revision', vendor: v, reason: '', notes: '' })}
+                onOpenErpModal={(v) => setModalState({ type: 'erp', vendor: v, reason: '', notes: '' })}
+              />
+            )}
+          </main>
+
+          {/* Modals Container */}
+          {modalState.type && (
+            <ModalContainer 
+              modalState={modalState} 
+              setModalState={setModalState}
+              onConfirmReject={handleConfirmReject}
+              onConfirmRevision={handleConfirmRevision}
+            />
+          )}
+
+          {/* Footer */}
+          <footer className="border-t border-slate-800/60 bg-slate-950 py-4 px-6 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p>© 2026 Vendor Capture Service • Powered by Trustpair Fraud Protection</p>
+            <div className="flex items-center space-x-4 text-slate-400">
+              <span className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Trustpair API Online</span>
+              </span>
+              <span>•</span>
+              <span>SAP & Oracle ERP Sync Ready</span>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    function SupplierPortalView({ formData, setFormData, onSubmit, submittedBanner, onGoToTrustpair, onLoadSample, onClearForm }) {
+      const handleChange = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+      };
+
+      if (submittedBanner) {
+        return (
+          <div className="max-w-2xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center my-8 shadow-2xl space-y-4">
+            <div className="w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
+              <i data-lucide="check-circle-2" className="w-10 h-10"></i>
+            </div>
+            <h2 className="text-2xl font-bold text-white">Vendor Details Submitted!</h2>
+            <p className="text-slate-400 text-xs leading-relaxed max-w-md mx-auto">
+              Record <span className="text-indigo-400 font-mono font-bold">{submittedBanner.id}</span> for <span className="text-slate-200 font-bold">{submittedBanner.name}</span> has been captured and routed to the Trustpair verification queue.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                onClick={onGoToTrustpair}
+                className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <span>View Trustpair Scan Result</span>
+                <i data-lucide="arrow-right" className="w-4 h-4"></i>
+              </button>
+
+              <button
+                onClick={onClearForm}
+                className="w-full sm:w-auto px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition cursor-pointer"
+              >
+                Submit Another Vendor
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Hero Banner */}
+          <div className="bg-gradient-to-r from-indigo-900/40 via-slate-900 to-slate-900 border border-indigo-500/20 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <span className="px-2.5 py-1 rounded-md bg-indigo-500/20 text-indigo-300 text-[10px] font-bold uppercase tracking-wider mb-2 inline-block">
+                Supplier Self-Service Onboarding
+              </span>
+              <h2 className="text-xl font-bold text-white">Corporate & Bank Details Capture</h2>
+              <p className="text-slate-400 text-xs mt-0.5">
+                Please enter official company tax IDs and settlement bank account details for verification.
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={onLoadSample}
+                className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                Auto-Fill Sample Data
+              </button>
+              <button
+                type="button"
+                onClick={onClearForm}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                Clear Fields
+              </button>
+            </div>
+          </div>
+
+          <form onSubmit={onSubmit} className="space-y-6">
+            {/* Section 1: Legal Entity */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center space-x-2 border-b border-slate-800 pb-3 text-indigo-400 font-semibold text-sm">
+                <i data-lucide="building-2" className="w-4 h-4"></i>
+                <span>1. Corporate Legal Identity</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block font-medium text-slate-400 mb-1">Legal Entity Name *</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.legalName}
+                    onChange={(e) => handleChange('legalName', e.target.value)}
+                    placeholder="Official Registered Business Name"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-400 mb-1">Trading Name / DBA</label>
+                  <input
+                    type="text"
+                    value={formData.tradingName}
+                    onChange={(e) => handleChange('tradingName', e.target.value)}
+                    placeholder="Doing Business As (if applicable)"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-400 mb-1">Tax / VAT Registration ID *</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.taxId}
+                    onChange={(e) => handleChange('taxId', e.target.value)}
+                    placeholder="e.g. US88-2940192 or DE811223344"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-mono focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-400 mb-1">Country of Registration *</label>
+                  <select
+                    value={formData.country}
+                    onChange={(e) => handleChange('country', e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="United States">United States</option>
+                    <option value="United Kingdom">United Kingdom</option>
+                    <option value="Germany">Germany</option>
+                    <option value="France">France</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block font-medium text-slate-400 mb-1">Street Address *</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.address1}
+                    onChange={(e) => handleChange('address1', e.target.value)}
+                    placeholder="Corporate Headquarters Address"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Contact */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center space-x-2 border-b border-slate-800 pb-3 text-indigo-400 font-semibold text-sm">
+                <i data-lucide="user" className="w-4 h-4"></i>
+                <span>2. Primary Accounts Receivable Contact</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block font-medium text-slate-400 mb-1">Contact Full Name *</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.contactName}
+                    onChange={(e) => handleChange('contactName', e.target.value)}
+                    placeholder="e.g. Amanda Hayes"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-400 mb-1">Work Email Address *</label>
+                  <input
+                    required
+                    type="email"
+                    value={formData.contactEmail}
+                    onChange={(e) => handleChange('contactEmail', e.target.value)}
+                    placeholder="name@company.com"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Bank Details */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-sm">
+                  <i data-lucide="credit-card" className="w-4 h-4"></i>
+                  <span>3. Banking Settlement Account</span>
+                </div>
+                <div className="flex items-center space-x-1 text-[11px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  <i data-lucide="shield-check" className="w-3 h-3"></i>
+                  <span>Trustpair Verification Active</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <label className="block font-medium text-slate-400 mb-1">Bank Name *</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.bankName}
+                    onChange={(e) => handleChange('bankName', e.target.value)}
+                    placeholder="e.g. JPMorgan Chase Bank"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-400 mb-1">Account Holder Name *</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.accountHolder}
+                    onChange={(e) => handleChange('accountHolder', e.target.value)}
+                    placeholder="Must match bank ownership record"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-400 mb-1">IBAN / Account Number *</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.accountNumber}
+                    onChange={(e) => handleChange('accountNumber', e.target.value)}
+                    placeholder="e.g. US44JPMC12345678901234"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 font-mono text-indigo-300 focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-400 mb-1">SWIFT / BIC Code *</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.swift}
+                    onChange={(e) => handleChange('swift', e.target.value)}
+                    placeholder="e.g. CHASUS33"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 font-mono text-white focus:outline-none focus:border-indigo-500 placeholder-slate-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end pt-2">
+              <button
+                type="submit"
+                className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-semibold rounded-xl text-xs transition shadow-lg shadow-indigo-500/25 cursor-pointer"
+              >
+                <span>Submit Details for Verification</span>
+                <i data-lucide="send" className="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      );
+    }
+
+    function TrustpairEngineView({ vendors, selectedVendorId, setSelectedVendorId, onSimulate, onGoToClerk }) {
+      const currentVendor = vendors.find(v => v.id === selectedVendorId) || vendors[0];
+
+      return (
+        <div className="space-y-6 max-w-6xl mx-auto">
+          {/* Banner */}
+          <div className="bg-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-xs mb-1">
+                <i data-lucide="sparkles" className="w-4 h-4 text-amber-400"></i>
+                <span>Trustpair AI Verification Engine</span>
+              </div>
+              <h2 className="text-xl font-bold text-white">Automated Bank Account Ownership Match</h2>
+              <p className="text-slate-400 text-xs mt-0.5">
+                Simulates real-time cross-referencing between supplier banking data and international bank directory databases.
+              </p>
+            </div>
+
+            <div className="w-full md:w-auto">
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">Select Vendor Entry:</label>
+              <select
+                value={selectedVendorId || ''}
+                onChange={(e) => setSelectedVendorId(e.target.value)}
+                className="w-full md:w-64 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                {vendors.map(v => (
+                  <option key={v.id} value={v.id}>
+                    {v.legalName} ({v.id})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {currentVendor ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Summary */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+                <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-2">
+                  Vendor Submitted Details
+                </h3>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">Legal Business Name</span>
+                    <span className="font-semibold text-slate-200">{currentVendor.legalName}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500 block">Tax Registration Number</span>
+                    <span className="font-mono text-slate-300">{currentVendor.taxId}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500 block">Submitted Account Holder</span>
+                    <span className="font-semibold text-slate-200">{currentVendor.accountHolder}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-500 block">IBAN / Account Number</span>
+                    <span className="font-mono text-indigo-400 break-all">{currentVendor.accountNumber}</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <span className="text-slate-500 text-[11px] block mb-1">Trustpair Risk Assessment</span>
+                  <RiskBadge level={currentVendor.trustpair?.riskLevel} />
+                </div>
+              </div>
+
+              {/* Match Verification Box */}
+              <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Trustpair Verification Scorecard</h3>
+                    <p className="text-xs text-slate-400">Banking network Ownership & Regulatory status checks</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-slate-500 block">Match Score</span>
+                    <span className={`text-2xl font-black ${
+                      currentVendor.trustpair?.score >= 80 ? 'text-emerald-400' :
+                      currentVendor.trustpair?.score >= 50 ? 'text-amber-400' : 'text-red-400'
+                    }`}>
+                      {currentVendor.trustpair?.score ?? 0} / 100
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-start justify-between gap-3">
+                    <div className="flex items-start space-x-3">
+                      <i data-lucide={currentVendor.trustpair?.bankMatch ? "check-circle-2" : "x-circle"} 
+                         className={`w-5 h-5 shrink-0 mt-0.5 ${currentVendor.trustpair?.bankMatch ? "text-emerald-400" : "text-red-400"}`}></i>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h4 className="text-xs font-bold text-white">Bank Account Owner Match</h4>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            Match: {currentVendor.trustpair?.bankMatchScore}%
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">{currentVendor.trustpair?.bankMatchDetails}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-start justify-between gap-3">
+                    <div className="flex items-start space-x-3">
+                      <i data-lucide={currentVendor.trustpair?.taxMatch ? "check-circle-2" : "alert-triangle"} 
+                         className={`w-5 h-5 shrink-0 mt-0.5 ${currentVendor.trustpair?.taxMatch ? "text-emerald-400" : "text-amber-400"}`}></i>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h4 className="text-xs font-bold text-white">Tax ID & VAT Registry Verification</h4>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            Valid: {currentVendor.trustpair?.taxMatchScore}%
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">{currentVendor.trustpair?.taxMatchDetails}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Simulation Control Panel */}
+                <div className="bg-slate-950 border border-indigo-500/20 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center space-x-1.5">
+                      <i data-lucide="refresh-cw" className="w-3.5 h-3.5"></i>
+                      <span>Simulate Risk Scenarios</span>
+                    </h4>
+                    <span className="text-[10px] text-slate-500">Interactive Testing</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                    <button
+                      onClick={() => onSimulate(currentVendor.id, 'VERIFIED')}
+                      className="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                    >
+                      <i data-lucide="check" className="w-3.5 h-3.5"></i>
+                      <span>Simulate Verified</span>
+                    </button>
+
+                    <button
+                      onClick={() => onSimulate(currentVendor.id, 'MISMATCH')}
+                      className="px-3 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                    >
+                      <i data-lucide="alert-triangle" className="w-3.5 h-3.5"></i>
+                      <span>Simulate Discrepancy</span>
+                    </button>
+
+                    <button
+                      onClick={() => onSimulate(currentVendor.id, 'HIGH_RISK')}
+                      className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                    >
+                      <i data-lucide="x" className="w-3.5 h-3.5"></i>
+                      <span>Simulate High Risk</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={onGoToClerk}
+                    className="flex items-center space-x-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-xs transition cursor-pointer"
+                  >
+                    <span>Proceed to AP Clerk Review</span>
+                    <i data-lucide="arrow-right" className="w-4 h-4"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    function APClerkConsoleView({
+      vendors,
+      allVendorsCount,
+      metrics,
+      selectedVendor,
+      setSelectedVendorId,
+      searchQuery,
+      setSearchQuery,
+      statusFilter,
+      setStatusFilter,
+      riskFilter,
+      setRiskFilter,
+      onApprove,
+      onOpenRejectModal,
+      onOpenRevisionModal,
+      onOpenErpModal
+    }) {
+      return (
+        <div className="space-y-6">
+          {/* Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-lg">
+              <div>
+                <p className="text-xs font-medium text-slate-400">Total Submissions</p>
+                <p className="text-2xl font-bold text-white mt-1">{metrics.total}</p>
+              </div>
+              <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl">
+                <i data-lucide="database" className="w-5 h-5"></i>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-lg">
+              <div>
+                <p className="text-xs font-medium text-slate-400">Pending Review</p>
+                <p className="text-2xl font-bold text-amber-400 mt-1">{metrics.pending}</p>
+              </div>
+              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
+                <i data-lucide="clock" className="w-5 h-5"></i>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-lg">
+              <div>
+                <p className="text-xs font-medium text-slate-400">High Fraud Risk</p>
+                <p className="text-2xl font-bold text-red-400 mt-1">{metrics.highRisk}</p>
+              </div>
+              <div className="p-3 bg-red-500/10 text-red-400 rounded-xl">
+                <i data-lucide="alert-octagon" className="w-5 h-5"></i>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-lg">
+              <div>
+                <p className="text-xs font-medium text-slate-400">ERP Approved</p>
+                <p className="text-2xl font-bold text-emerald-400 mt-1">{metrics.approved}</p>
+              </div>
+              <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                <i data-lucide="check-circle-2" className="w-5 h-5"></i>
+              </div>
+            </div>
+          </div>
+
+          {/* Console Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* Queue Column */}
+            <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 className="text-sm font-bold text-white flex items-center space-x-2">
+                  <i data-lucide="layers" className="w-4 h-4 text-indigo-400"></i>
+                  <span>Review Queue</span>
+                </h2>
+                <span className="text-xs text-slate-500">{vendors.length} showing</span>
+              </div>
+
+              {/* Filters */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search vendor name, ID, Tax ID..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-300 focus:outline-none"
+                  >
+                    <option value="ALL">All Statuses</option>
+                    <option value="Ready for Review">Ready for Review</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Revision Requested">Revision Requested</option>
+                  </select>
+
+                  <select
+                    value={riskFilter}
+                    onChange={(e) => setRiskFilter(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-300 focus:outline-none"
+                  >
+                    <option value="ALL">All Risk Levels</option>
+                    <option value="LOW">Low Risk</option>
+                    <option value="MEDIUM">Medium Risk</option>
+                    <option value="HIGH">High Risk</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* List */}
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                {vendors.length === 0 ? (
+                  <p className="text-center py-8 text-xs text-slate-500">No vendors match filter criteria.</p>
+                ) : (
+                  vendors.map(v => {
+                    const isSelected = selectedVendor?.id === v.id;
+                    return (
+                      <div
+                        key={v.id}
+                        onClick={() => setSelectedVendorId(v.id)}
+                        className={`p-3 rounded-xl border transition cursor-pointer flex flex-col gap-2 ${
+                          isSelected
+                            ? 'bg-slate-800 border-indigo-500/60 shadow-md'
+                            : 'bg-slate-950/60 border-slate-800/80 hover:bg-slate-800/40'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-white truncate">{v.legalName}</span>
+                          <StatusBadge status={v.status} />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span className="font-mono text-indigo-400">{v.id}</span>
+                          <RiskBadge level={v.trustpair?.riskLevel} />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Detail Column */}
+            <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+              {selectedVendor ? (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h2 className="text-lg font-bold text-white">{selectedVendor.legalName}</h2>
+                        <StatusBadge status={selectedVendor.status} />
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Submitted: {selectedVendor.submittedAt} • ID: {selectedVendor.id}
+                      </p>
+                    </div>
+
+                    {selectedVendor.status === 'Ready for Review' && (
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => onApprove(selectedVendor.id)}
+                          className="flex items-center space-x-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl transition cursor-pointer shadow-lg shadow-emerald-600/20"
+                        >
+                          <i data-lucide="check" className="w-3.5 h-3.5"></i>
+                          <span>Approve</span>
+                        </button>
+
+                        <button
+                          onClick={() => onOpenRevisionModal(selectedVendor)}
+                          className="flex items-center space-x-1 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-xl transition cursor-pointer shadow-lg"
+                        >
+                          <i data-lucide="rotate-ccw" className="w-3.5 h-3.5"></i>
+                          <span>Request Revision</span>
+                        </button>
+
+                        <button
+                          onClick={() => onOpenRejectModal(selectedVendor)}
+                          className="flex items-center space-x-1 px-3 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold text-xs rounded-xl transition cursor-pointer shadow-lg"
+                        >
+                          <i data-lucide="x" className="w-3.5 h-3.5"></i>
+                          <span>Reject</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Comparison Side-by-Side */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+                      <i data-lucide="eye" className="w-4 h-4 text-indigo-400"></i>
+                      <span>Supplier Input vs Trustpair Verification</span>
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Supplier Column */}
+                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                        <div className="border-b border-slate-800 pb-2 flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-300">Supplier Data</span>
+                          <span className="text-[10px] text-slate-500">Captured Entry</span>
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          <div>
+                            <span className="text-slate-500 block">Account Holder</span>
+                            <span className="font-semibold text-white">{selectedVendor.accountHolder}</span>
+                          </div>
+
+                          <div>
+                            <span className="text-slate-500 block">IBAN / Account #</span>
+                            <span className="font-mono text-indigo-400 break-all">{selectedVendor.accountNumber}</span>
+                          </div>
+
+                          <div>
+                            <span className="text-slate-500 block">Tax / VAT Registration</span>
+                            <span className="font-mono text-slate-300">{selectedVendor.taxId}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Trustpair Column */}
+                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                        <div className="border-b border-slate-800 pb-2 flex items-center justify-between">
+                          <span className="text-xs font-bold text-indigo-400">Trustpair Verified</span>
+                          <RiskBadge level={selectedVendor.trustpair?.riskLevel} />
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          <div>
+                            <span className="text-slate-500 block">Ownership Status</span>
+                            <span className={`font-semibold flex items-center space-x-1 mt-0.5 ${
+                              selectedVendor.trustpair?.bankMatch ? 'text-emerald-400' : 'text-red-400'
+                            }`}>
+                              <i data-lucide={selectedVendor.trustpair?.bankMatch ? "check-circle-2" : "x-circle"} className="w-3.5 h-3.5"></i>
+                              <span>{selectedVendor.trustpair?.bankMatch ? 'Matched' : 'Discrepancy'} ({selectedVendor.trustpair?.bankMatchScore}%)</span>
+                            </span>
+                            <p className="text-[11px] text-slate-400 mt-1">{selectedVendor.trustpair?.bankMatchDetails}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ERP Status Banner */}
+                  {selectedVendor.status === 'Approved' && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center space-x-3 text-emerald-400">
+                        <i data-lucide="check-circle-2" className="w-5 h-5 shrink-0"></i>
+                        <div>
+                          <h4 className="text-xs font-bold text-white">Verified & Approved for ERP Master Record</h4>
+                          <p className="text-[11px] text-emerald-300/80">Payload generated for SAP / Oracle Finance integration.</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => onOpenErpModal(selectedVendor)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1 transition cursor-pointer shrink-0"
+                      >
+                        <i data-lucide="code" className="w-3.5 h-3.5"></i>
+                        <span>View ERP JSON</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Audit Log */}
+                  <div className="space-y-3 pt-2">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+                      <i data-lucide="clock" className="w-4 h-4 text-indigo-400"></i>
+                      <span>Audit Trail Log</span>
+                    </h3>
+
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                      {selectedVendor.auditTrail?.map((log, idx) => (
+                        <div key={idx} className="flex items-start justify-between text-xs border-b border-slate-800/40 last:border-0 pb-2 last:pb-0">
+                          <div className="flex items-start space-x-2">
+                            <div className="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 shrink-0"></div>
+                            <div>
+                              <p className="text-slate-200 font-medium">{log.action}</p>
+                              <p className="text-slate-500 text-[11px]">{log.actor}</p>
+                            </div>
+                          </div>
+                          <span className="font-mono text-slate-500 text-[10px]">{log.timestamp}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-12 text-slate-500 text-xs">Select a vendor from the list to review.</div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    function ModalContainer({ modalState, setModalState, onConfirmReject, onConfirmRevision }) {
+      const { type, vendor, reason, notes } = modalState;
+
+      const closeModal = () => setModalState({ type: null, vendor: null, reason: 'Name Mismatch / High Risk', notes: '' });
+
+      return (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            
+            {type === 'reject' && (
+              <>
+                <div className="flex items-center space-x-2 text-red-400">
+                  <i data-lucide="alert-octagon" className="w-6 h-6"></i>
+                  <h3 className="text-lg font-bold text-white">Reject Vendor Submission</h3>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Rejecting this record logs the reason in the audit trail and halts payment onboarding.
+                </p>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Rejection Category</label>
+                    <select
+                      value={reason}
+                      onChange={(e) => setModalState(prev => ({ ...prev, reason: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-red-500"
+                    >
+                      <option value="Name Mismatch / High Risk">Name Mismatch / High Risk Flag</option>
+                      <option value="Invalid Tax ID">Invalid Tax / VAT ID</option>
+                      <option value="Suspected Fraudulent Account">Suspected Fraudulent Account</option>
+                      <option value="Duplicate Record">Duplicate Record</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Additional Notes</label>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setModalState(prev => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Specify additional context for rejection..."
+                      rows={3}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-2">
+                  <button onClick={closeModal} className="px-4 py-2 text-xs text-slate-400 hover:text-white transition">Cancel</button>
+                  <button onClick={onConfirmReject} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-xl text-xs transition">Confirm Rejection</button>
+                </div>
+              </>
+            )}
+
+            {type === 'revision' && (
+              <>
+                <div className="flex items-center space-x-2 text-amber-400">
+                  <i data-lucide="rotate-ccw" className="w-6 h-6"></i>
+                  <h3 className="text-lg font-bold text-white">Request Supplier Revision</h3>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Return this application back to the supplier with instructions to rectify discrepancies.
+                </p>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Revision Instructions *</label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setModalState(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="e.g. Please re-submit bank details with official legal company name matching VAT certificate..."
+                    rows={4}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-2">
+                  <button onClick={closeModal} className="px-4 py-2 text-xs text-slate-400 hover:text-white transition">Cancel</button>
+                  <button onClick={onConfirmRevision} disabled={!notes.trim()} className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold rounded-xl text-xs transition disabled:opacity-50">Send Notice</button>
+                </div>
+              </>
+            )}
+
+            {type === 'erp' && vendor && (
+              <>
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center space-x-2 text-emerald-400">
+                    <i data-lucide="code" className="w-5 h-5"></i>
+                    <h3 className="text-base font-bold text-white">ERP Payload Preview (SAP / Oracle)</h3>
+                  </div>
+                  <button onClick={closeModal} className="text-slate-400 hover:text-white">✕</button>
+                </div>
+
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-[11px] text-emerald-400 overflow-x-auto max-h-72">
+                  <pre>{JSON.stringify({
+                    event: "VENDOR_APPROVED_MASTER_SYNC",
+                    timestamp: new Date().toISOString(),
+                    targetSystem: "SAP_S4HANA_FINANCE",
+                    vendorData: {
+                      vendorId: vendor.id,
+                      legalEntityName: vendor.legalName,
+                      taxRegistrationNumber: vendor.taxId,
+                      country: vendor.country,
+                      bankDetails: {
+                        bankName: vendor.bankName,
+                        accountHolder: vendor.accountHolder,
+                        ibanAccountNumber: vendor.accountNumber,
+                        swiftBic: vendor.swift,
+                        currency: vendor.currency
+                      },
+                      trustpairScore: vendor.trustpair?.score,
+                      riskStatus: vendor.trustpair?.riskLevel
+                    }
+                  }, null, 2)}</pre>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button onClick={closeModal} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition">Close Preview</button>
+                </div>
+              </>
+            )}
+
+          </div>
+        </div>
+      );
+    }
+
+    function RiskBadge({ level }) {
+      if (level === 'LOW') {
+        return (
+          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>Low Risk</span>
+          </span>
+        );
+      }
+      if (level === 'MEDIUM') {
+        return (
+          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span>Medium Risk</span>
+          </span>
+        );
+      }
+      if (level === 'HIGH') {
+        return (
+          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+            <span>High Fraud Risk</span>
+          </span>
+        );
+      }
+      return <span className="text-xs text-slate-500">Unscanned</span>;
+    }
+
+    function StatusBadge({ status }) {
+      switch (status) {
+        case 'Approved':
+          return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Approved</span>;
+        case 'Rejected':
+          return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/10 text-red-400 border border-red-500/30">Rejected</span>;
+        case 'Revision Requested':
+          return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">Revision Requested</span>;
+        default:
+          return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">Ready for Review</span>;
+      }
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
